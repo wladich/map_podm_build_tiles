@@ -1,0 +1,2 @@
+Depends:
+python-pyproj python-shapely argparse python-imaging
