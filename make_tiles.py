@@ -156,7 +156,7 @@ def join_vmaps_for_tile(vmaps, out_name, tile_extents, map_border):
         ] + vmaps + [
         '-o',  out_name,
         '--range_datum', 'sphere', 
-        '--range_proj', 'merc', 
+        '--range_proj', 'google',
         '--set_brd', arg_geom
         ]
     shell_execute(cmd, check=True)
@@ -180,7 +180,7 @@ def render_tile(tile_extents_meters, tile_size_pixels, vmap_name, png_name, low_
         'vmap_render',
         '-d', str(dpi), 
         '--datum', 'sphere', 
-        '--proj', 'merc', 
+        '--proj', 'google',
         '--geom', arg_geom, 
         '--transp_margins', '1', 
         '--rscale=%s' % rscale] + arg_qual + [
