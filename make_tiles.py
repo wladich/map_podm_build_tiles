@@ -354,14 +354,14 @@ def build_overview_tile(src_tiles_names, target_tile_png, low_quality):
         
 
 
-def build_overviews(max_level, out_dir, low_qiality):
+def build_overviews(max_level, out_dir, low_quality):
     for level in xrange(max_level-1, -1, -1):
         print 'Overview', level
         overview_jobs = list(iterate_overview_jobs(level, out_dir))
         overviews_n = len(overview_jobs)
 #        for n, (ovr_filename, src_tiles) in enumerate(overview_jobs):
 #            build_overview_tile(src_tiles, ovr_filename, low_qiality)
-        for n, _ in enumerate(mpstarimap(build_overview_tile, overview_jobs, low_qiality=low_qiality)):
+        for n, _ in enumerate(mpstarimap(build_overview_tile, overview_jobs, low_quality=low_quality)):
             print '\r%s%%' % ((n + 1) * 100 / overviews_n)
         sys.stdout.flush()
     pass
