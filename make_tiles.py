@@ -166,7 +166,6 @@ def link_polygons(p1, p2):
     return p
 
 def join_vmaps_for_tile(vmaps, out_name, tile_extents, map_border):
-#    arg_vmaps = ' '.join(vmaps)
     tile_extents = transform_extents(proj_gmerc, proj_wgs84, tile_extents)
     tile_box = box(*tile_extents)
     tile_boundary = tile_box
@@ -300,7 +299,7 @@ def build_max_level(vmaps_dir, max_level, metatile_level, map_border, out_dir,
                                  vmaps_extents=vmaps_extents,
                                  map_border=map_border,
                                  out_dir=out_dir, low_quality=low_quality)):
-        print '\r%s%%' % ((n + 1) * 100 / metatiles_n)
+        print '\r%s%%' % ((n + 1) * 100 / metatiles_n),
         sys.stdout.flush()
     print
 
@@ -331,7 +330,7 @@ def iterate_overview_jobs(level, out_dir):
                 if any(src_tiles):
                     ovr_filename = '%s_%s_%s.png' % (level, tx, ty)
                     ovr_filename = os.path.join(out_dir, ovr_filename)
-                    yield ovr_filename,  src_tiles
+                    yield src_tiles, ovr_filename
             
 def build_overview_tile(src_tiles_names, target_tile_png, low_quality):
     im = Image.new('RGBA', (512, 512))
@@ -359,10 +358,8 @@ def build_overviews(max_level, out_dir, low_quality):
         print 'Overview', level
         overview_jobs = list(iterate_overview_jobs(level, out_dir))
         overviews_n = len(overview_jobs)
-#        for n, (ovr_filename, src_tiles) in enumerate(overview_jobs):
-#            build_overview_tile(src_tiles, ovr_filename, low_qiality)
         for n, _ in enumerate(mpstarimap(build_overview_tile, overview_jobs, low_quality=low_quality)):
-            print '\r%s%%' % ((n + 1) * 100 / overviews_n)
+            print '\r%s%%' % ((n + 1) * 100 / overviews_n),
         sys.stdout.flush()
     pass
 
@@ -374,10 +371,8 @@ def optimize_tiles(dir_path):
     files = os.listdir(dir_path)
     files = [os.path.join(dir_path, filename) for filename in files]
     files_n = len(files)
-#    for n, filename in enumerate(files):
-#        optimize_png(filename)
     for n, _ in enumerate(mpimap(optimize_png, files)):
-        print '\r%s%%' % ((n + 1) * 100 / files_n)
+        print '\r%s%%' % ((n + 1) * 100 / files_n),
         sys.stdout.flush()
     print
 
