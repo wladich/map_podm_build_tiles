@@ -9,11 +9,37 @@ import subprocess
 import json
 from shapely.geometry import MultiPolygon, box, Polygon
 import argparse
+import multiprocessing
+import functools
+import traceback
 
 proj_wgs84 = pyproj.Proj('+init=epsg:4326')
 proj_gmerc = pyproj.Proj('+init=epsg:3785')
 max_coord = pyproj.transform(proj_wgs84, proj_gmerc, 180, 0)[0]
 
+class ChildException(Exception):
+    pass
+    
+def mpimap_wrapper(func, args):
+    result = {'error': None}
+    try:
+        result['value'] = func(*args)
+    except Exception:
+        tb = sys.exc_info()[2]
+        result['error'] = ''.join(traceback.format_tb(tb))
+    return result
+    
+def mpimap(func, job, **kwargs):
+    if kwargs:
+        func = functools.partial(func, **kwargs)
+    func = functools.partial(mpimap_wrapper, func)
+    pool = multiprocessing.Pool()        
+    for result in pool.imap_unordered(func, job):
+        error = result['error']
+        if error:
+            raise ChildException(error)
+        yield result['value']
+        
 def shell_execute(command, stdin=None, env_variables=None, check=False, on_segfault=RuntimeError, **kwargs):
   if env_variables:
     env = os.environ.copy()
@@ -239,8 +265,9 @@ def process_metatile(metatile_index, max_level, vmaps_extents, map_border, out_d
     metatile_size_pixels = 256 * (2 ** meta_delta + 2) + 0.49
     vmaps = get_vmaps_intersecting_extent(vmaps_extents, metatile_extents_meters)
     if vmaps:
-        tmp_vmap_name = os.path.join(out_dir, '_tmp.vmap')
-        tmp_png_name = os.path.join(out_dir, '_tmp.png')
+        tile_index_str = '%s_%s' % (tx, ty)
+        tmp_vmap_name = os.path.join(out_dir, '_tmp_%s.vmap' % tile_index_str)
+        tmp_png_name = os.path.join(out_dir, '_tmp_%s.png' % tile_index_str)
         try:
             if join_vmaps_for_tile(vmaps, tmp_vmap_name, metatile_extents_meters, map_border):
                 render_tile(metatile_extents_meters, metatile_size_pixels, 
@@ -261,9 +288,14 @@ def build_max_level(vmaps_dir, max_level, metatile_level, map_border, out_dir,
     metatiles_indexes = iterate_metatiles(max_level, metatile_level, total_extents_gmerc)
     metatiles_indexes = list(metatiles_indexes)
     metatiles_n = len(metatiles_indexes)
-    for n, metatile_index in enumerate(metatiles_indexes):
-        process_metatile(metatile_index, max_level, vmaps_extents, map_border,
-                         out_dir, low_quality)
+#    for n, metatile_index in enumerate(metatiles_indexes):
+#        process_metatile(metatile_index, max_level, vmaps_extents, map_border,
+#                         out_dir, low_quality)
+    for n, _ in enumerate(mpimap(process_metatile, metatiles_indexes, 
+                                 max_level=max_level, 
+                                 vmaps_extents=vmaps_extents,
+                                 map_border=map_border,
+                                 out_dir=out_dir, low_quality=low_quality)):
         print '\r%s%%' % ((n + 1) * 100 / metatiles_n)
         sys.stdout.flush()
     print
@@ -293,7 +325,9 @@ def iterate_overview_jobs(level, out_dir):
                 else:
                     src_tiles.append(None)
                 if any(src_tiles):
-                    yield (tx, ty),  src_tiles
+                    ovr_filename = '%s_%s_%s.png' % (level, tx, ty)
+                    ovr_filename = os.path.join(out_dir, ovr_filename)
+                    yield ovr_filename,  src_tiles
             
 def build_overview_tile(src_tiles_names, target_tile_png, low_quality):
     im = Image.new('RGBA', (512, 512))
@@ -321,11 +355,10 @@ def build_overviews(max_level, out_dir, low_qiality):
         print 'Overview', level
         overview_jobs = list(iterate_overview_jobs(level, out_dir))
         overviews_n = len(overview_jobs)
-        for n, ((ovr_x, ovr_y), src_tiles) in enumerate(overview_jobs):
-            ovr_filename = '%s_%s_%s.png' % (level, ovr_x, ovr_y)
-            ovr_filename = os.path.join(out_dir, ovr_filename)
-            build_overview_tile(src_tiles, ovr_filename, low_qiality)
-        print '\r%s%%' % ((n + 1) * 100 / overviews_n)
+#        for n, (ovr_filename, src_tiles) in enumerate(overview_jobs):
+#            build_overview_tile(src_tiles, ovr_filename, low_qiality)
+        for n, _ in enumerate(mpimap(build_overview_tile, overview_jobs, low_qiality=low_qiality)):
+            print '\r%s%%' % ((n + 1) * 100 / overviews_n)
         sys.stdout.flush()
     pass
 
@@ -335,10 +368,11 @@ def optimize_png(png_name):
 
 def optimize_tiles(dir_path):
     files = os.listdir(dir_path)
+    files = [(os.path.join(dir_path, filename),) for filename in files]
     files_n = len(files)
-    for n, filename in enumerate(files):
-        filename = os.path.join(dir_path, filename)
-        optimize_png(filename)
+#    for n, filename in enumerate(files):
+#        optimize_png(filename)
+    for n, _ in enumerate(mpimap(optimize_png, files)):
         print '\r%s%%' % ((n + 1) * 100 / files_n)
         sys.stdout.flush()
     print
