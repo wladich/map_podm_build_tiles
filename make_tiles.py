@@ -264,7 +264,7 @@ def build_max_level(vmaps_dir, max_level, metatile_level, map_border, out_dir,
     for n, metatile_index in enumerate(metatiles_indexes):
         process_metatile(metatile_index, max_level, vmaps_extents, map_border,
                          out_dir, low_quality)
-        print '\r%s%%' % ((n + 1) * 100 / metatiles_n),
+        print '\r%s%%' % ((n + 1) * 100 / metatiles_n)
         sys.stdout.flush()
     print
 
@@ -325,10 +325,8 @@ def build_overviews(max_level, out_dir, low_qiality):
             ovr_filename = '%s_%s_%s.png' % (level, ovr_x, ovr_y)
             ovr_filename = os.path.join(out_dir, ovr_filename)
             build_overview_tile(src_tiles, ovr_filename, low_qiality)
-        print '\r%s%%' % ((n + 1) * 100 / overviews_n),
+        print '\r%s%%' % ((n + 1) * 100 / overviews_n)
         sys.stdout.flush()
-#    print
-    #out_dir + '/%s_%s_%s.png' % (tile_level, tile_y, tile_x)
     pass
 
 def optimize_png(png_name):
@@ -341,7 +339,7 @@ def optimize_tiles(dir_path):
     for n, filename in enumerate(files):
         filename = os.path.join(dir_path, filename)
         optimize_png(filename)
-        print '\r%s%%' % ((n + 1) * 100 / files_n),
+        print '\r%s%%' % ((n + 1) * 100 / files_n)
         sys.stdout.flush()
     print
 
