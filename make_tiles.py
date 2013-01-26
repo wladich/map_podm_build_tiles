@@ -29,7 +29,7 @@ def mpimap_wrapper((func, args, kwargs)):
         result['traceback'] = ''.join(traceback.format_tb(tb))
     return result
     
-def mpimap(func, job, **kwargs):
+def mpstarimap(func, job, **kwargs):
     job = ((func, args, kwargs) for args in job)
     pool = multiprocessing.Pool()        
     for result in pool.imap_unordered(mpimap_wrapper, job):
@@ -37,6 +37,10 @@ def mpimap(func, job, **kwargs):
         if error:
             raise ChildException('%r\n%s' % (error, result['traceback']))
         yield result['value']
+
+def mpimap(func, job, **kwargs):
+    job = ((x,) for x in job )
+    return mpstarimap(func, job, **kwargs)
         
 def shell_execute(command, stdin=None, env_variables=None, check=False, on_segfault=RuntimeError, **kwargs):
   if env_variables:
@@ -355,7 +359,7 @@ def build_overviews(max_level, out_dir, low_qiality):
         overviews_n = len(overview_jobs)
 #        for n, (ovr_filename, src_tiles) in enumerate(overview_jobs):
 #            build_overview_tile(src_tiles, ovr_filename, low_qiality)
-        for n, _ in enumerate(mpimap(build_overview_tile, overview_jobs, low_qiality=low_qiality)):
+        for n, _ in enumerate(mpstarimap(build_overview_tile, overview_jobs, low_qiality=low_qiality)):
             print '\r%s%%' % ((n + 1) * 100 / overviews_n)
         sys.stdout.flush()
     pass
@@ -366,7 +370,7 @@ def optimize_png(png_name):
 
 def optimize_tiles(dir_path):
     files = os.listdir(dir_path)
-    files = [(os.path.join(dir_path, filename),) for filename in files]
+    files = [os.path.join(dir_path, filename) for filename in files]
     files_n = len(files)
 #    for n, filename in enumerate(files):
 #        optimize_png(filename)
