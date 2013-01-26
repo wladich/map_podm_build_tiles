@@ -10,7 +10,6 @@ import json
 from shapely.geometry import MultiPolygon, box, Polygon
 import argparse
 import multiprocessing
-import functools
 import traceback
 
 proj_wgs84 = pyproj.Proj('+init=epsg:4326')
@@ -20,21 +19,19 @@ max_coord = pyproj.transform(proj_wgs84, proj_gmerc, 180, 0)[0]
 class ChildException(Exception):
     pass
     
-def mpimap_wrapper(func, args):
+def mpimap_wrapper((func, args, kwargs)):
     result = {'error': None}
     try:
-        result['value'] = func(*args)
+        result['value'] = func(*args, **kwargs)
     except Exception:
         tb = sys.exc_info()[2]
         result['error'] = ''.join(traceback.format_tb(tb))
     return result
     
 def mpimap(func, job, **kwargs):
-    if kwargs:
-        func = functools.partial(func, **kwargs)
-    func = functools.partial(mpimap_wrapper, func)
+    job = ((func, args, kwargs) for args in job)
     pool = multiprocessing.Pool()        
-    for result in pool.imap_unordered(func, job):
+    for result in pool.imap_unordered(mpimap_wrapper, job):
         error = result['error']
         if error:
             raise ChildException(error)
