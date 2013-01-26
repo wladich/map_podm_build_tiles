@@ -11,6 +11,7 @@ from shapely.geometry import MultiPolygon, box, Polygon
 import argparse
 import multiprocessing
 import traceback
+import signal
 
 proj_wgs84 = pyproj.Proj('+init=epsg:4326')
 proj_gmerc = pyproj.Proj('+init=epsg:3785')
@@ -22,6 +23,7 @@ class ChildException(Exception):
 def mpimap_wrapper((func, args, kwargs)):
     result = {'error': None}
     try:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         result['value'] = func(*args, **kwargs)
     except Exception:
         err_cls, err, tb = sys.exc_info()
