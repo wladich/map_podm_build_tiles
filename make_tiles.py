@@ -24,8 +24,9 @@ def mpimap_wrapper((func, args, kwargs)):
     try:
         result['value'] = func(*args, **kwargs)
     except Exception:
-        tb = sys.exc_info()[2]
-        result['error'] = ''.join(traceback.format_tb(tb))
+        err_cls, err, tb = sys.exc_info()
+        result['error'] = err
+        result['traceback'] = ''.join(traceback.format_tb(tb))
     return result
     
 def mpimap(func, job, **kwargs):
@@ -34,7 +35,7 @@ def mpimap(func, job, **kwargs):
     for result in pool.imap_unordered(mpimap_wrapper, job):
         error = result['error']
         if error:
-            raise ChildException(error)
+            raise ChildException('%r\n%s' % (error, result['traceback']))
         yield result['value']
         
 def shell_execute(command, stdin=None, env_variables=None, check=False, on_segfault=RuntimeError, **kwargs):
