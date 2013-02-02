@@ -360,8 +360,8 @@ def build_overviews(max_level, out_dir, low_quality):
         overviews_n = len(overview_jobs)
         for n, _ in enumerate(mpstarimap(build_overview_tile, overview_jobs, low_quality=low_quality)):
             print '\r%s%%' % ((n + 1) * 100 / overviews_n),
-        sys.stdout.flush()
-    pass
+            sys.stdout.flush()
+        print
 
 def optimize_png(png_name):
     shell_execute(['pngnq', '-e', '.png_', png_name], check=True)
