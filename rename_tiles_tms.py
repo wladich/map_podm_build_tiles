@@ -16,7 +16,7 @@ os.mkdir(args.tms_dir)
 for fn in os.listdir(args.tiles_dir):
     z, y, x = map(int, re.match(r'(\d+)_(\d+)_(\d+)\.png', fn).groups())
     fn = os.path.join(args.tiles_dir, fn)
-    y = 2 ** z - y
+    y = 2 ** z - y - 1
     trg_dir = os.path.join(args.tms_dir, str(z), str(x))
     trg_name = os.path.join(trg_dir, '%s.png' % y )
     if not os.path.isdir(trg_dir):
