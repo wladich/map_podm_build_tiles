@@ -12,6 +12,7 @@ import argparse
 import multiprocessing
 import traceback
 import signal
+import math 
 
 proj_wgs84 = pyproj.Proj('+init=epsg:4326')
 proj_gmerc = pyproj.Proj('+init=epsg:3785')
@@ -191,7 +192,8 @@ def join_vmaps_for_tile(vmaps, out_name, tile_extents, map_border):
     shell_execute(cmd, check=True)
     return True
 
-def render_tile(tile_extents_meters, tile_size_pixels, vmap_name, png_name, low_quality):
+def render_tile(tile_extents_meters, tile_size_pixels, vmap_name, png_name, 
+                low_quality, rscale):
     tile_width_meters = tile_extents_meters[2] - tile_extents_meters[0]
     dx = tile_extents_meters[2] - tile_extents_meters[0]
     dy = tile_extents_meters[3] - tile_extents_meters[1]
@@ -203,7 +205,6 @@ def render_tile(tile_extents_meters, tile_size_pixels, vmap_name, png_name, low_
         tile_size_pixels /= 4
     else:
         arg_qual = []
-    rscale = 50000/0.57
     dpi = rscale * tile_size_pixels * 2.54 / (tile_width_meters * 100)
     cmd = [
         'vmap_render',
@@ -256,9 +257,12 @@ def iterate_metatiles(max_level, metatile_level, total_gmerc_extents):
             yield tx, ty, metatile_level
                 
 def process_metatile(metatile_index, max_level, vmaps_extents, map_border, out_dir,
-                     low_quality):
+                     low_quality, rscale):
     tx, ty, meta_level = metatile_index
     metatile_extents_meters = get_tile_extents_meters(tx, ty, meta_level)
+    metatile_extents_degrees = transform_extents(proj_gmerc, proj_wgs84, metatile_extents_meters)
+    latitude = (metatile_extents_degrees[1] + metatile_extents_degrees[3]) / 2
+    rscale = rscale / math.cos(math.radians(latitude))
     margin = get_tile_size_meters(max_level)
     metatile_extents_meters[0] -= margin
     metatile_extents_meters[1] -= margin
@@ -274,7 +278,7 @@ def process_metatile(metatile_index, max_level, vmaps_extents, map_border, out_d
         try:
             if join_vmaps_for_tile(vmaps, tmp_vmap_name, metatile_extents_meters, map_border):
                 render_tile(metatile_extents_meters, metatile_size_pixels, 
-                            tmp_vmap_name, tmp_png_name, low_quality)
+                            tmp_vmap_name, tmp_png_name, low_quality, rscale)
                 dice_metatile(meta_level, tx, ty, max_level, tmp_png_name,
                               low_quality, out_dir)
         finally:
@@ -284,7 +288,7 @@ def process_metatile(metatile_index, max_level, vmaps_extents, map_border, out_d
                 os.remove(tmp_png_name)
 
 def build_max_level(vmaps_dir, max_level, metatile_level, map_border, out_dir, 
-                    low_quality):
+                    low_quality, rscale):
     vmaps_extents = get_all_vmaps_extents(vmaps_dir)
     total_extents_wgs84 = combine_extents(vmaps_extents.values())
     total_extents_gmerc = transform_extents(proj_wgs84, proj_gmerc, total_extents_wgs84)
@@ -298,7 +302,8 @@ def build_max_level(vmaps_dir, max_level, metatile_level, map_border, out_dir,
                                  max_level=max_level, 
                                  vmaps_extents=vmaps_extents,
                                  map_border=map_border,
-                                 out_dir=out_dir, low_quality=low_quality)):
+                                 out_dir=out_dir, low_quality=low_quality,
+                                 rscale=rscale)):
         print '\r%s%%' % ((n + 1) * 100 / metatiles_n),
         sys.stdout.flush()
     print
@@ -383,17 +388,14 @@ def parge_args():
     parser.add_argument('--border', metavar='FILE', dest='border_filename')
     parser.add_argument('--vmap', metavar='DIR', dest='vmaps_dir', required=True)
     parser.add_argument('--out', metavar='DIR', dest='out_dir', required=True)
+    parser.add_argument('--rscale', type=int)
+    parser.add_argument('--max-level', type=int)
+    parser.add_argument('--meta-level', type=int)
     args = parser.parse_args()
     return args
     
 def main():
     args = parge_args()
-    metatile_level = 9
-    if args.low_quality:
-        max_level= 12
-    else:
-        max_level= 14
-    
     if args.border_filename:    
         border = load_border(args.border_filename)
     else:
@@ -404,11 +406,11 @@ def main():
         for fn in glob.glob(os.path.join(args.out_dir, '*')):
             shutil.rmtree(fn, onerror=lambda _, fn, __: os.remove(fn) if os.path.exists(fn) else 0)
         
-    print 'Building level', max_level
-    build_max_level(args.vmaps_dir, max_level, metatile_level, border, args.out_dir, 
-                    args.low_quality)
+    print 'Building level', args.max_level
+    build_max_level(args.vmaps_dir, args.max_level, args.meta_level, border, args.out_dir, 
+                    args.low_quality, args.rscale)
     print 'Building overviews'
-    build_overviews(max_level, args.out_dir, args.low_quality)
+    build_overviews(args.max_level, args.out_dir, args.low_quality)
     
     if not args.no_size_optimize:
         print 'Optimizing size'
