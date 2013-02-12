@@ -76,6 +76,8 @@ def read_vmap_extents(vmap_filename):
             maxx = max(corners[0]) / 1000000.
             miny = min(corners[1]) / 1000000.
             maxy = max(corners[1]) / 1000000.
+            print minx, miny, maxx, maxy
+            exit()
             return minx, miny, maxx, maxy
 
 def get_all_vmaps_extents(vmaps_dir):
@@ -388,9 +390,9 @@ def parge_args():
     parser.add_argument('--border', metavar='FILE', dest='border_filename')
     parser.add_argument('--vmap', metavar='DIR', dest='vmaps_dir', required=True)
     parser.add_argument('--out', metavar='DIR', dest='out_dir', required=True)
-    parser.add_argument('--rscale', type=int)
-    parser.add_argument('--max-level', type=int)
-    parser.add_argument('--meta-level', type=int)
+    parser.add_argument('--rscale', type=int, required=True)
+    parser.add_argument('--max-level', type=int, required=True)
+    parser.add_argument('--meta-level', type=int, required=True)
     args = parser.parse_args()
     return args
     
