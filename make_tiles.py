@@ -66,20 +66,34 @@ def shell_execute(command, stdin=None, env_variables=None, check=False, on_segfa
     raise RuntimeError('Error %s running "%s":\n%s' % (p.returncode, command, err))
   return p.returncode, out, err
 
-def read_vmap_extents(vmap_filename):
-    for line in open(vmap_filename):
-        if line.startswith('BRD'):
-            corners = line.split()[1:]
-            corners = [map(int, c.split(',')) for c in corners]
-            corners = zip(*corners)
-            minx = min(corners[0]) / 1000000.
-            maxx = max(corners[0]) / 1000000.
-            miny = min(corners[1]) / 1000000.
-            maxy = max(corners[1]) / 1000000.
-            print minx, miny, maxx, maxy
-            exit()
-            return minx, miny, maxx, maxy
 
+def read_vmap_extents(vmap_filename):
+    in_data = False
+    minx = miny = 1e100
+    maxx = maxy = -1e100
+    for line in open(vmap_filename):
+        if line.startswith('VMAP '):
+            continue
+        command, data = line.split('\t', 1)
+        command = command.strip()
+        if command == 'DATA':
+            in_data = True
+        elif command == '':
+            if not in_data:
+                continue
+        else:
+            in_data = False
+            continue
+        data = data.split()
+        coords = [map(int, xy.split(',')) for xy in data]
+        x, y = zip(*coords)
+        minx = min(minx, *x)
+        miny = min(miny, *y)
+        maxx = max(maxx, *x)
+        maxy = max(maxy, *y)
+    return minx / 1000000., miny / 1000000., maxx / 1000000., maxy / 1000000.
+        
+    
 def get_all_vmaps_extents(vmaps_dir):
     vmap_extents = {}
     for vmap_name in os.listdir(vmaps_dir):
