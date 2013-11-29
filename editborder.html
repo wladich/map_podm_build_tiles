@@ -1,0 +1,293 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+        <title>Map Viewer</title>
+    
+        <style>
+  
+            #map_canvas {
+              position: absolute;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+            }
+
+            #buttons
+            {
+                position:absolute;
+                top:4px;
+                left:40px;
+                z-index:1000;
+                width: 100%
+            }
+            
+            
+            #buttons button {
+                float: left;
+                margin-left: 10px;
+            }
+
+            #buttons #commitButton {
+                float: right;
+                margin-right: 40px;
+            }
+            .olImageLoadError {
+                opacity: 0 !important; 
+            }
+            #wkt{
+                position: absolute;
+                top: 100%;
+                margin-top: -50px;
+                z-index:9999;
+                width: 400px;
+                height: 50px;
+            }
+            #history {
+//                position: absolute;
+                z-index: 2000;
+                display: block;
+                overflow: auto;
+            }
+            #history h3, #history div {
+                font-size: 10px;
+                padding-top: 2px;
+                padding-bottom: 2px;
+                top: 0px;
+            }
+
+        </style>
+        <link rel="stylesheet" href="http://code.jquery.com/ui/1.10.0/themes/base/jquery-ui.css">
+        <script type="text/javascript" src="http://code.jquery.com/jquery-1.7.min.js"></script>
+        <script type="text/javascript" src="http://openlayers.org/api/2.12/OpenLayers.js"></script>
+        <script src="http://code.jquery.com/ui/1.10.0/jquery-ui.js"></script>
+        <script>
+            function getQueryVariable(variable) {
+                var query = window.location.search.substring(1);
+                var vars = query.split('&');
+                for (var i = 0; i < vars.length; i++) {
+                    var pair = vars[i].split('=');
+                    if (decodeURIComponent(pair[0]) == variable) {
+                        return decodeURIComponent(pair[1]);
+                    }
+                }
+                console.log('Query variable %s not found', variable);
+            }
+
+            function loadFeatures(borderLayer) 
+            {
+                multigeometry = JSON.parse($('#wkt').attr('value'));
+                for (var poly = 0; poly < multigeometry.length; poly++)
+                {
+                    
+                    var geometry = multigeometry[poly];
+                    var rings = [];
+                    for (var r = 0; r < geometry.length; r++)
+                    {
+                        var points = [];
+                        for (var p = 0; p < geometry[r].length; p++)
+                            points.push(new OpenLayers.Geometry.Point(geometry[r][p][0], geometry[r][p][1]));
+                        rings.push(new OpenLayers.Geometry.LinearRing(points))
+                    }
+                    
+                    var polygon = new OpenLayers.Geometry.Polygon(rings);
+                    
+                    var polygonFeature = new OpenLayers.Feature.Vector(polygon, null, {fillOpacity: 0.1, fillColor: "#ffaa00"});
+                    borderLayer.addFeatures([polygonFeature]);
+                }
+            }
+
+            function setupMap()
+            {
+                tiles_dir = getQueryVariable('tiles_dir');
+                var slazav = new OpenLayers.Layer.XYZ("slazav", tiles_dir + '/${z}_${y}_${x}.png', {
+                        sphericalMercator: true,
+                        numZoomLevels:15,
+                        //transparent: true,
+                        //opacity: 0.5,
+                        isBaseLayer: false
+                });
+                var osm = new OpenLayers.Layer.OSM("OSM");
+    
+                var borderLayer = new OpenLayers.Layer.Vector("Map Border", {
+                    renderers: OpenLayers.Layer.Vector.prototype.renderers
+                });
+                var map = new OpenLayers.Map("map_canvas", {
+                    maxExtent: new OpenLayers.Bounds(-20037508.34,-20037508.34,20037508.34,20037508.34),
+                    numZoomLevels:18,
+                    maxResolution:156543.0339,
+                    units:'m',
+                    projection: "EPSG:900913",
+                    displayProjection: new OpenLayers.Projection("EPSG:4326"),
+                    allOverlays: true
+                });
+                map.addLayers([osm, slazav, borderLayer]);
+                map.addControl( new OpenLayers.Control.LayerSwitcher() );
+                var mapCenterLonLat = new OpenLayers.LonLat(37.98, 55.78)
+                map.setCenter(mapCenterLonLat.transform(new OpenLayers.Projection("EPSG:4326"), map.getProjectionObject()), 9);
+
+                var modifyControl = new OpenLayers.Control.ModifyFeature(borderLayer);
+                map.addControl( modifyControl );
+                modifyControl.mode = OpenLayers.Control.ModifyFeature.RESHAPE;
+                modifyControl.activate();
+                
+                var addRingControl = new OpenLayers.Control.DrawFeature(borderLayer, OpenLayers.Handler.Polygon,
+                    {handlerOptions: {holeModifier: "ctrlKey"}});
+                map.addControl( addRingControl );
+                addRingControl.events.register("featureadded", {}, function()
+                {
+                    modifyControl.activate();
+                    addRingControl.deactivate();
+                    selectControl.deactivate();
+                })
+                
+                var selectControl = new OpenLayers.Control.SelectFeature(borderLayer, {
+                    clickout: true,
+                    multiple: false, hover: false
+                });
+                borderLayer.events.on({
+                    'featureselected': function(event) {
+                        if (selectControl.active)
+                        {
+                            borderLayer.destroyFeatures([event.feature]);
+                            modifyControl.activate();
+                            addRingControl.deactivate();
+                            selectControl.deactivate();
+                        }
+                    }
+                });
+                map.addControl( selectControl );
+                return {
+                        layers: {
+                            osm: osm,
+                            slazav: slazav,
+                            border: borderLayer
+                        },
+                        controls: {
+                            select: selectControl,
+                            modify: modifyControl,
+                            addRing: addRingControl
+                            
+                        }
+                       }
+            }
+
+            function fetchBorder(borderLayer)
+            {
+                border_file = getQueryVariable('border');
+                //$.get(border_file, null, 'html')
+                $.ajax({"url": border_file, "dataType": "html"})
+                .error(function() { document.write("Failed to load border"); })
+                .success(function(border) { 
+                    $('#wkt').attr('value', border); 
+                    borderLayer.destroyFeatures();
+                    loadFeatures(borderLayer);
+                })
+            }
+            
+            function getBorderWkt(borderLayer)
+            {
+                var boundary = [];
+                for (var poly = 0; poly < borderLayer.features.length; poly++)
+                {
+                    boundary[poly] = [];
+                    var polygon = borderLayer.features[poly].geometry;
+                    for (var r = 0; r < polygon.components.length; r++)
+                    {
+                        boundary[poly][r] = [];
+                        var ringVertices = polygon.components[r].getVertices();
+                        for (var p = 0; p < ringVertices.length; p++)
+                            boundary[poly][r].push([ringVertices[p].x, ringVertices[p].y]);
+                    }
+                }
+                return JSON.stringify(boundary);
+            }
+
+            
+            function setupButtons(controls, borderLayer)
+            {
+                $('#deleteButton').click(function()
+                {
+                    controls["modify"].deactivate();
+                    controls["addRing"].deactivate();
+                    controls["select"].activate();
+                });
+            
+                $('#saveButton').click(function()
+                {
+                    controls["modify"].deactivate();
+                    controls["addRing"].deactivate();
+                    controls["select"].deactivate();
+                    $('#wkt').attr('value', getBorderWkt(borderLayer));
+                    controls["modify"].activate();
+                })
+
+                $("#loadButton").click(function()
+                {
+                    borderLayer.destroyFeatures();
+                    loadFeatures(borderLayer);
+                })
+
+                $("#addButton").click(function()
+                {
+                    loadFeatures(borderLayer);
+                })
+            
+                $("#ringButton").click(function()
+                {
+                    controls["modify"].deactivate();
+                    controls["addRing"].activate();
+                    controls["select"].deactivate();
+                })
+                
+                $("#commitButton").click(function()
+                {
+                    var commit_comment = window.prompt("Comment");
+                    if (!commit_comment) return;
+                    controls["modify"].deactivate();
+                    controls["addRing"].deactivate();
+                    controls["select"].deactivate();
+                    var border_wkt = getBorderWkt(borderLayer);
+                    controls["modify"].activate();
+                    var url = '/job/commit_map_podm_border/build';
+                    var data = {parameter: [
+                        {name: "COMMIT_COMMENT", value: commit_comment}, 
+                        {name: "BORDER_DATA", value: border_wkt}]};
+                    data = JSON.stringify(data);
+                    data = {json: data}
+                    $.post(url, data)
+                        .error(function(){ alert("Commit failed") })
+                        .success(function(){ alert("Commit job queued")})
+                })
+            
+            }
+            
+            $(function()
+            {
+                mapProps = setupMap();
+                fetchBorder(mapProps["layers"]["border"])
+                setupButtons(mapProps["controls"], mapProps["layers"]["border"]);
+                $( "#history" ).accordion({
+                  collapsible: true
+                });
+            })
+        </script>
+    </head>
+
+    <body style="margin:0; padding:0; overflow:hidden;">
+
+            <div id="buttons">
+                <button id="loadButton">Load boundary</button>
+                <button id="addButton">Load boundary+</button>
+                <button id="saveButton">Save boundary</button>
+                <button id="ringButton">New ring</button>
+                <button id="deleteButton">Delete ring</button>
+                <button id="commitButton">Commit changes</button>
+            </div>
+            <div id="map_canvas"></div>
+
+            <textarea id="wkt"></textarea>   
+
+
+    </body>
+</html>
