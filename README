@@ -1,2 +1,4 @@
 Depends:
-python-pyproj python-shapely argparse python-imaging
+apt-get install python-pyproj python-shapely argparse python-imaging
+pip install PyPng
+pip install git+git@github.com:wladich/pyimagequant.git
