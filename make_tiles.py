@@ -13,6 +13,9 @@ import multiprocessing
 import traceback
 import signal
 import math 
+import png
+from array import array
+import imagequant
 
 proj_wgs84 = pyproj.Proj('+init=epsg:4326')
 proj_gmerc = pyproj.Proj('+init=epsg:3785')
@@ -251,18 +254,9 @@ def dice_metatile(meta_level, meta_tile_x, meta_tile_y, max_level,
             abs_tile_y = meta_tile_y * slices_number + rel_tile_y
             pixel_y0 = 256 + rel_tile_y * 256
             im2 = im.crop([pixel_x0, pixel_y0, pixel_x0+256, pixel_y0+256])
-            bands = im2.split()
-            # Do not save blank tiles
-            # Remove alpha channel if tile is fully opaque
-            if len(bands) == 4:
-                extrema = bands[3].getextrema()
-                if extrema[1] == 0:
-                    continue
-                if extrema[0] == 255:
-                    im2 = im2.convert('RGB')
             out_name = '%s_%s_%s.png' % (max_level, abs_tile_y, abs_tile_x)
             out_name = os.path.join(out_dir, out_name)
-            im2.save(out_name)
+            save_png_rgb(im2, out_name)
 
 
 def iterate_metatiles(max_level, metatile_level, total_gmerc_extents):
@@ -365,12 +359,7 @@ def build_overview_tile(src_tiles_names, target_tile_png, low_quality):
         im.paste(Image.open(src_tiles_names[3]), (256, 256))
     resampler = Image.ANTIALIAS if not low_quality else Image.NEAREST
     im = im.resize((256, 256), resampler)
-    alpha = im.split()[3]
-    extrema = alpha.getextrema()
-    if extrema[1] > 0: # the image is not fully transparent
-        if extrema[0] == 255: # the image is fully opaque
-            im = im.convert('RGB')
-        im.save(target_tile_png)
+    save_png_rgb(im, target_tile_png)
         
 
 
@@ -384,9 +373,34 @@ def build_overviews(max_level, out_dir, low_quality):
             sys.stdout.flush()
         print
 
+# Used only for storing tiles before optimization and for fast previews
+# -- no need to optimize size
+def save_png_rgb(im, filename):
+    has_alpha = im.mode == 'RGBA'
+    # Do not save empty images
+    if has_alpha:
+        alpha_min, alpha_max = im.split()[3].getextrema()
+        if alpha_max == 0:
+            return
+    ar = array('B', im.tostring())
+    pngw = png.Writer(width=256, height=256, alpha=has_alpha)
+    with open(filename, 'w') as f:
+        pngw.write_array(f, ar)
+
+def save_png_with_palette(image, palette, filename):
+    l = list(palette)
+    palette = zip(l[::4], l[1::4], l[2::4], l[3::4])
+    if all(c[3]==255 for c in palette):
+        palette = [c[:3] for c in palette]
+    pngw = png.Writer(width=256, height=256, palette=palette, compression=1)
+    with open(filename, 'w') as f:
+        pngw.write_array(f, image)
+
 def optimize_png(png_name):
-    shell_execute(['pngnq', '-e', '.png_', png_name], check=True)
-    os.rename(png_name + '_', png_name)
+    im = Image.open(png_name)
+    im = im.convert('RGBA')
+    quantized = imagequant.quantize_image(im, colors=128, speed=8)
+    save_png_with_palette(quantized['image'], quantized['palette'], png_name)
 
 def optimize_tiles(dir_path):
     files = os.listdir(dir_path)
