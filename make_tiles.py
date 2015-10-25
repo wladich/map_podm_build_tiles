@@ -32,10 +32,10 @@ border = None
 tile_writer = None
 
 ### misc utils
-    
+
 class ChildException(Exception):
     pass
-    
+
 def mpimap_wrapper((func, args, kwargs)):
     result = {'error': None}
     try:
@@ -46,7 +46,8 @@ def mpimap_wrapper((func, args, kwargs)):
         result['error'] = err
         result['traceback'] = ''.join(traceback.format_tb(tb))
     return result
-    
+
+
 def mpstarimap(func, job, **kwargs):
     job = ((func, args, kwargs) for args in job)
     pool = multiprocessing.Pool()
@@ -56,23 +57,27 @@ def mpstarimap(func, job, **kwargs):
             raise ChildException('%r\n%s' % (error, result['traceback']))
         yield result['value']
 
+
 def mpimap(func, job, **kwargs):
-    job = ((x,) for x in job )
+    job = ((x,) for x in job)
     return mpstarimap(func, job, **kwargs)
 
 #### tile and geometry utils
 
+
 def tile_size_in_gmerc_meters(level):
     return max_gmerc_coord * 2 / 2 ** level
 
+
 def tile_from_gmerc_meters(x, y, level):
     tile_size = tile_size_in_gmerc_meters(level)
-    tx = (x + max_gmerc_coord) / tile_size 
-    ty = (-y + max_gmerc_coord) / tile_size 
+    tx = (x + max_gmerc_coord) / tile_size
+    ty = (-y + max_gmerc_coord) / tile_size
     return int(tx), int(ty)
 
+
 def link_polygons(p1, p2):
-    '''Finds two closest points of two polygons and joins pokygons, 
+    '''Finds two closest points of two polygons and joins pokygons,
        adding link between those points.
        Used to simulate island polygons.
        Naive implementation, does not check for intersections, use only
@@ -94,6 +99,7 @@ def link_polygons(p1, p2):
     p = geometry.Polygon(p)
     return p
 
+
 class Extents(object):
     def __init__(self, extents, gmerc=False):
         if gmerc:
@@ -105,23 +111,23 @@ class Extents(object):
             self._extents_wgs84 = extents
             self._extents_gmerc = self._transform_extents(
                 proj_wgs84, proj_gmerc, extents)
-    
+
     def _transform_extents(self, s_srs, t_srs, extents):
         x1, y1, x2, y2 = extents
         [[x1, x2], [y1, y2]] = pyproj.transform(s_srs, t_srs, [x1, x2], [y1, y2])
         return [x1, y1, x2, y2]
 
-    @classmethod    
+    @classmethod
     def from_wgs84(cls, extents):
-        return cls(extents)        
-        
-    @classmethod    
+        return cls(extents)
+
+    @classmethod
     def from_gmerc(cls, extents):
         return cls(extents, gmerc=True)
 
-    @classmethod    
+    @classmethod
     def from_tile_index(cls, tile_x, tile_y, level):
-        tile_size =  tile_size_in_gmerc_meters(level)
+        tile_size = tile_size_in_gmerc_meters(level)
         x = tile_x * tile_size - max_gmerc_coord
         y = -tile_y * tile_size + max_gmerc_coord
         extents = x, y - tile_size, x + tile_size, y
@@ -130,12 +136,12 @@ class Extents(object):
     @property
     def as_wgs84(self):
         return self._extents_wgs84
-        
-    @property        
+
+    @property
     def as_gmerc(self):
         return self._extents_gmerc
-        
-    @classmethod    
+
+    @classmethod
     def from_combination(cls, extents_list):
         extents_list = [e.as_wgs84 for e in extents_list]
         extents_list = zip(*extents_list)
@@ -151,7 +157,7 @@ class Extents(object):
         left1, bottom1, right1, top1 = self.as_gmerc
         left2, bottom2, right2, top2 = other.as_gmerc
         return left1 < right2 and right1 > left2 and bottom1 < top2 and top1 > bottom2
-        
+
     def expand_by_meters(self, margin):
         minx, miny, maxx, maxy = self.as_gmerc
         minx -= margin
@@ -159,12 +165,15 @@ class Extents(object):
         maxx += margin
         maxy += margin
         return self.from_gmerc([minx, miny, maxx, maxy])
-        
+
     def get_size_gmerc(self):
         extents = self.as_gmerc
         return extents[2] - extents[0], extents[3] - extents[1]
-        
+
+
 #### load data
+
+
 def read_vmap_extents(vmap_filename):
     in_data = False
     minx = miny = 1e100
@@ -198,7 +207,7 @@ def get_all_vmaps_extents():
     for vmap_path, vmap_extents in zip(vmap_paths, mpimap(read_vmap_extents, vmap_paths)):
         vmaps_extents[vmap_path] = vmap_extents
     return vmaps_extents
-    
+
 def get_border():
     '''Load border from json format and transform it to wgs84'''
     if config.border_filename:
@@ -233,12 +242,12 @@ def serialize_image(im):
     s = StringIO()
     save_png_rgba(im, s)
     return s.getvalue()
-    
+
 def unserialize_image(s):
     s = StringIO(s)
     im = Image.open(s)
     return im
-    
+
 def is_image_empty(im):
     if im.mode[-1] == 'A':
         _, alpha_max = im.split()[-1].getextrema()
@@ -252,7 +261,7 @@ class MBTilesWriter(object):
         CREATE UNIQUE INDEX idx_tiles ON tiles(zoom_level, tile_column, tile_row);
         CREATE INDEX idx_z ON tiles(zoom_level);
     '''
-    
+
     PRAGMAS = '''
         PRAGMA journal_mode = WAL;
         PRAGMA synchronous = 0;
@@ -274,7 +283,7 @@ class MBTilesWriter(object):
             s = buffer(s.getvalue())
             with self.lock:
                 self.conn.execute('''
-                    INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (?,?,?,?)''', 
+                    INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (?,?,?,?)''',
                     (level, tile_x, tile_y, s))
                 self.conn.commit()
 
@@ -282,29 +291,29 @@ class MBTilesWriter(object):
         self.conn.commit()
         self.conn.execute('PRAGMA journal_mode = off')
         self.conn.close()
-        
+
     def __del__(self):
         self.close()
-        
+
 class FilesWriter(object):
     def __init__(self, path, image_encoder):
         if not os.path.isdir(path):
             os.makedirs(path)
         self.path = path
         self.encoder = image_encoder
-    
+
     def write(self, im, tile_x, tile_y, level):
         if not is_image_empty(im):
             filename = '%s_%s_%s.png' % (level, tile_y, tile_x)
             filename = os.path.join(self.path, filename)
             with open(filename, 'w') as f:
                 self.encoder(im, f)
-        
+
 #### main
 
 def list_vmaps_intersecting_extent(extent):
-    return [vmap_name 
-            for vmap_name, vmap_extents in vmaps_extents.items() 
+    return [vmap_name
+            for vmap_name, vmap_extents in vmaps_extents.items()
             if extent.intersects(vmap_extents)]
 
 def get_extents_with_border_intersection(extents):
@@ -331,7 +340,7 @@ def join_vmaps_for_extents(extents, out_name):
     arg_geom = sum(render_border, ())
     arg_geom = ','.join(map(str, arg_geom))
     cmd = [
-        'mapsoft_vmap', '-v',  
+        'mapsoft_vmap', '-v',
         ] + vmaps + [
         '-o',  out_name,
         '--set_brd', arg_geom
@@ -343,11 +352,11 @@ def render_extents(extents, pixel_size, vmap_name, out_name):
     dx, dy = extents.get_size_gmerc()
     x0, y0, _, _ = extents.as_gmerc
     arg_geom = '%sx%s+%s+%s' % (dx, dy, x0, y0)
-    _, y1, _, y2 = extents.as_wgs84    
+    _, y1, _, y2 = extents.as_wgs84
     corrected_rscale = config.rscale / math.cos(math.radians((y1 + y2) / 2))
 
     # there were some problems with rounding
-    pixel_size += 0.49    
+    pixel_size += 0.49
     dpi = corrected_rscale * pixel_size * 2.54 / (dx * 100)
     if config.low_quality:
         arg_qual = ['--contours', '0', '--label_style', '0']
@@ -356,11 +365,11 @@ def render_extents(extents, pixel_size, vmap_name, out_name):
 
     cmd = [
         'vmap_render',
-        '-d', str(dpi), 
-        '--datum', 'sphere', 
+        '-d', str(dpi),
+        '--datum', 'sphere',
         '--proj', 'google',
-        '--geom', arg_geom, 
-        '--transp_margins', '1', 
+        '--geom', arg_geom,
+        '--transp_margins', '1',
         '--rscale=%s' % corrected_rscale] + arg_qual + [
         vmap_name, out_name]
     subprocess.check_call(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -370,10 +379,10 @@ def get_rendered_metatile(tile_x, tile_y, tile_level):
     metatile_extents = Extents.from_tile_index(tile_x, tile_y, tile_level)
     margin = tile_size_in_gmerc_meters(config.max_level)
     metatile_extents = metatile_extents.expand_by_meters(margin)
-    
+
     with tempfile.NamedTemporaryFile(suffix='.vmap') as vmap_file:
         if join_vmaps_for_extents(metatile_extents, vmap_file.name):
-            meta_delta = config.max_level - config.metatile_level    
+            meta_delta = config.max_level - config.metatile_level
             metatile_size_pixels = 256 * (2 ** meta_delta + 2)
             if config.low_quality:
                 metatile_size_pixels /= 2
@@ -382,7 +391,7 @@ def get_rendered_metatile(tile_x, tile_y, tile_level):
                 im = Image.open(image_file)
                 assert im.size == (metatile_size_pixels, metatile_size_pixels), im.size
                 if config.low_quality:
-                    # it was rendered half the size 
+                    # it was rendered half the size
                     w, h = im.size
                     im = im.resize((w * 2, h * 2))
                 width, height = im.size
@@ -390,7 +399,7 @@ def get_rendered_metatile(tile_x, tile_y, tile_level):
                 return im
         else:
             return None
-    
+
 def slice_metatile(im, metatile_x, metatile_y, dest_level):
     meta_delta = dest_level - config.metatile_level
     meta_q = 2**meta_delta
@@ -400,10 +409,10 @@ def slice_metatile(im, metatile_x, metatile_y, dest_level):
     for d_tile_y in xrange(meta_q):
         y0 = d_tile_y * 256
         for d_tile_x in xrange(meta_q):
-            x0 = d_tile_x * 256    
+            x0 = d_tile_x * 256
             im2 = im.crop([x0, y0, x0+256, y0+256])
             tile_writer.write(im2, tile_x0 + d_tile_x, tile_y0 + d_tile_y, dest_level)
-    
+
 def process_metatile(tile_x, tile_y):
     # 1. render
     # 2. crop
@@ -422,7 +431,7 @@ def process_metatile(tile_x, tile_y):
         return None
 
 def list_tiles(level):
-    total_extents = Extents.from_combination(vmaps_extents.values())    
+    total_extents = Extents.from_combination(vmaps_extents.values())
     minx, miny, maxx, maxy = total_extents.as_gmerc
     tile_minx, tile_maxy = tile_from_gmerc_meters(minx, miny, level)
     tile_maxx, tile_miny = tile_from_gmerc_meters(maxx, maxy, level)
@@ -431,7 +440,7 @@ def list_tiles(level):
         for ty in xrange(tile_miny, tile_maxy + 1):
             tiles.append((tx, ty))
     return tiles
-    
+
 def make_tiles_from_metalevel_to_maxlevel():
     metatiles = list_tiles(config.metatile_level)
     saved_tiles = {}
@@ -467,14 +476,14 @@ def build_overviews(saved_tiles, source_level):
     if dest_level < 0:
         return
     build_overviews(next_saved_tiles, dest_level)
-    
+
 def parge_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--low-quality', action='store_true')
     parser.add_argument('--no-size-optimize', action='store_true')
     parser.add_argument('--border', metavar='FILE', dest='border_filename')
     parser.add_argument('--vmap', metavar='DIR', dest='vmaps_dir', required=True)
-    parser.add_argument('--out', metavar='PATH', dest='out_path', required=True, 
+    parser.add_argument('--out', metavar='PATH', dest='out_path', required=True,
                         help='Filename of mbtiles container or tiles dir')
     parser.add_argument('--rscale', type=int, required=True)
     parser.add_argument('--max-level', type=int, required=True)
@@ -498,10 +507,10 @@ def main():
         image_encoder = save_png_with_palette
     tile_writer_class = {'files': FilesWriter, 'mbtiles': MBTilesWriter}[config.format]
     tile_writer = tile_writer_class(config.out_path, image_encoder)
-    
+
     tiles_at_metatile_level = make_tiles_from_metalevel_to_maxlevel()
     build_overviews(tiles_at_metatile_level, config.metatile_level)
-   
+
 t = time.time()
 main()
 print 'Done in %.1f seconds' % (time.time() - t)
