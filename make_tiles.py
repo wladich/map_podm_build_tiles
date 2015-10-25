@@ -178,10 +178,13 @@ def read_vmap_extents(vmap_filename):
     in_data = False
     minx = miny = 1e100
     maxx = maxy = -1e100
-    for line in open(vmap_filename):
+    for line_n, line in enumerate(open(vmap_filename), 1):
         if line.startswith('VMAP '):
             continue
-        command, data = line.split('\t', 1)
+        try:
+            command, data = line.split('\t', 1)
+        except ValueError as e:
+            raise Exception('Faild to parse line %d in %s: %s' % (line_n, vmap_filename, e))
         command = command.strip()
         if command == 'DATA':
             in_data = True
@@ -203,7 +206,7 @@ def read_vmap_extents(vmap_filename):
 def get_all_vmaps_extents():
     vmaps_dir = config.vmaps_dir
     vmaps_extents = {}
-    vmap_paths = [os.path.join(vmaps_dir, fn) for fn in os.listdir(vmaps_dir)]
+    vmap_paths = [os.path.join(vmaps_dir, fn) for fn in os.listdir(vmaps_dir) if fn.endswith('.vmap')]
     for vmap_path, vmap_extents in zip(vmap_paths, mpimap(read_vmap_extents, vmap_paths)):
         vmaps_extents[vmap_path] = vmap_extents
     return vmaps_extents
