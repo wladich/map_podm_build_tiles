@@ -460,6 +460,8 @@ def make_tiles_from_metalevel_to_maxlevel():
 def build_overviews(saved_tiles, source_level):
     next_saved_tiles = {}
     dest_level = source_level - 1
+    if dest_level < 0:
+        return
     for tile_x, tile_y in list_tiles(dest_level):
         im_dest = None
         for dx in [0,1]:
@@ -476,8 +478,6 @@ def build_overviews(saved_tiles, source_level):
             im_dest = im_dest.resize((256 ,256), resampler)
             tile_writer.write(im_dest, tile_x, tile_y, dest_level)
             next_saved_tiles[(tile_x, tile_y)] = serialize_image(im_dest)
-    if dest_level < 0:
-        return
     build_overviews(next_saved_tiles, dest_level)
 
 def parge_args():
