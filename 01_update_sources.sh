@@ -11,7 +11,7 @@ else
 fi
 
 if [ -e $BORDER_DIR ]; then
-    push $BORDER_DIR
+    pushd $BORDER_DIR
     git pull
     popd
 else
