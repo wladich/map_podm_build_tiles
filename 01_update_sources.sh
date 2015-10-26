@@ -7,7 +7,7 @@ if [ -e $VMAPS_DIR ]; then
     popd
 else
     mkdir -p $VMAPS_DIR
-    git clone --depth=1 https://github.com/slazav/map_podm.git $VMAPS_DIR
+    git clone --depth=1 "$REPO_URL" $VMAPS_DIR
 fi
 
 
