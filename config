@@ -1,4 +1,4 @@
 VMAPS_DIR=_tmp/vmaps
 PREVIEW_TILES_DIR=_tmp/preview_tiles
 MBTILES_FILE=map_podm.mbtiles
-BORDER_DIR=_tmp/border
+BORDER=_tmp/border.txt
