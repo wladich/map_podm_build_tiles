@@ -9,18 +9,18 @@ import multiprocessing.pool
 import traceback
 import signal
 import json
-#from shapely.geometry import MultiPolygon, box, Polygon
 import shapely.geometry as geometry
 import tempfile
 import math
 import Image
+from PIL import ImageFilter
 from array import array
 import png
 import imagequant
 from itertools import izip
 from cStringIO import StringIO
 import time
-import  pysqlite2.dbapi2 as sqlite
+import pysqlite2.dbapi2 as sqlite
 
 proj_wgs84 = pyproj.Proj('+init=epsg:4326')
 proj_gmerc = pyproj.Proj('+init=epsg:3785')
@@ -457,6 +457,8 @@ def make_tiles_from_metalevel_to_maxlevel():
     print
     return saved_tiles
 
+highlight_color = 0xdb, 0x5a, 0x00
+
 def build_overviews(saved_tiles, source_level):
     next_saved_tiles = {}
     dest_level = source_level - 1
@@ -464,7 +466,7 @@ def build_overviews(saved_tiles, source_level):
         return
     for tile_x, tile_y in list_tiles(dest_level):
         im_dest = None
-        for dx in [0,1]:
+        for dx in [0, 1]:
             for dy in [0, 1]:
                 src_tile_x = tile_x * 2 + dx
                 src_tile_y = tile_y * 2 + dy
@@ -472,10 +474,21 @@ def build_overviews(saved_tiles, source_level):
                 if src_tile_index in saved_tiles:
                     if im_dest is None:
                         im_dest = Image.new('RGBA', (512, 512))
-                    im_dest.paste(unserialize_image(saved_tiles[src_tile_index]), (dx * 256, dy * 256))
+                    src_image = unserialize_image(saved_tiles[src_tile_index])
+                    if config.highlight_level == dest_level:
+                        src_image = src_image.convert('RGBA')
+                        mask = src_image.split()[-1]
+                        mask = mask.point(lambda x: 0 if x < 255 else 255)
+                        im_dest.paste(highlight_color, (dx * 256, dy * 256), mask)
+                    else:
+                        im_dest.paste(src_image, (dx * 256, dy * 256))
         if im_dest is not None:
-            resampler = Image.ANTIALIAS if not config.low_quality else Image.NEAREST
-            im_dest = im_dest.resize((256 ,256), resampler)
+            if (config.highlight_level is not None and dest_level <= config.highlight_level):
+                im_dest = im_dest.resize((256, 256), Image.NEAREST)
+                im_dest = im_dest.filter(ImageFilter.MaxFilter())
+            else:
+                resampler = Image.NEAREST if config.low_quality else Image.ANTIALIAS
+                im_dest = im_dest.resize((256, 256), resampler)
             tile_writer.write(im_dest, tile_x, tile_y, dest_level)
             next_saved_tiles[(tile_x, tile_y)] = serialize_image(im_dest)
     build_overviews(next_saved_tiles, dest_level)
@@ -490,6 +503,7 @@ def parge_args():
                         help='Filename of mbtiles container or tiles dir')
     parser.add_argument('--rscale', type=int, required=True)
     parser.add_argument('--max-level', type=int, required=True)
+    parser.add_argument('--highlight-level', type=int, required=False)
     parser.add_argument('--metatile-level', type=int, required=True)
     parser.add_argument('--format', choices=['files', 'mbtiles'], default='files', help='default is files')
     args = parser.parse_args()
