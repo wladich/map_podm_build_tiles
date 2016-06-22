@@ -50,11 +50,10 @@ for ring in rings:
         raise Exception('Invalid polygon constructed (maybe inner rings intersect shell or each other)')
     polygons.append(polygon)
 
+coords_json = []
 if polygons and not geometry.MultiPolygon(polygons):
     raise Exception('Invalid multipolygon (maybe polygons overlap)')
 
-coords_json = []
 for polygon in polygons:
     coords_json.append([list(polygon.exterior.coords)] + [list(ring.coords) for ring in polygon.interiors])
-
 print json.dumps(coords_json)

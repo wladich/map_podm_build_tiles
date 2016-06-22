@@ -12,8 +12,7 @@ import json
 import shapely.geometry as geometry
 import tempfile
 import math
-import Image
-from PIL import ImageFilter
+from PIL import Image, ImageFilter
 from array import array
 import png
 import imagequant

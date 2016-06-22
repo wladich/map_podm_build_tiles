@@ -1,7 +1,13 @@
 #!/bin/bash
 set -e
-. config
+set -x
+DIR=`dirname $0`
+DIR=`readlink -f $DIR`
 
-[ -e "$MBTILES_FILE" ] && rm "$MBTILES_FILE"
-python plt2json.py $VMAPS_DIR/BRD/*.plt > $BORDER
-nice python make_tiles.py --vmap $VMAPS_DIR/vmap --out $MBTILES_FILE --format mbtiles --rscale 50000 --max-level 14 --metatile-level 9 --border $BORDER --highlight-level=4
+. $DIR/config
+
+[ -e "$WORKDIR/$MBTILES_FILE" ] && rm "$WORKDIR/$MBTILES_FILE"
+python $DIR/plt2json.py $WORKDIR/vmaps/BRD/*.plt > $WORKDIR/border.txt
+docker run --rm -v $WORKDIR:/maps -v $DIR/make_tiles.py:/make_tiles.py:ro slazav_tiles bash -c "
+nice python /make_tiles.py --vmap /maps/vmaps/vmap --out /maps/$MBTILES_FILE --format mbtiles --border /maps/border.txt $RENDER_ARGS
+"

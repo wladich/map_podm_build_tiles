@@ -1,5 +1,12 @@
 REPO_URL="https://github.com/slazav/map_podm.git"
-VMAPS_DIR=_tmp/vmaps
-PREVIEW_TILES_DIR=_tmp/preview_tiles
 MBTILES_FILE=map_podm.mbtiles
-BORDER=_tmp/border.txt
+RENDER_ARGS="--rscale 50000 --max-level 14 --metatile-level 9 --highlight-level=4"
+
+server=vultr.wladich.tk
+src_path=/var/www/tiles/layers/map_podm_new.mb
+target_path=/var/www/tiles/layers/map_podm.mb
+
+
+WORKDIR=`dirname $0`
+WORKDIR=`readlink -f $WORKDIR`/_tmp
+
