@@ -7,5 +7,5 @@ DIR=`readlink -f $DIR`
 
 . $DIR/config
 
-ssh root@${server} "mv ${src_path} ${target_path}"
+ssh root@${server} "mv ${upload_path} ${target_path}"
 
