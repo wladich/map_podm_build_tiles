@@ -7,5 +7,5 @@ DIR=`readlink -f $DIR`
 
 . $DIR/config
 
-scp "$WORKDIR/$MBTILES_FILE" root@${server}:${upload_path}
+rsync -P "$WORKDIR/$MBTILES_FILE" root@${server}:${upload_path}
 
